@@ -9,7 +9,7 @@ HF_HUB_CACHE_MOUNT=~/.cache/huggingface
 HF_HUB_CACHE=/root/.cache/huggingface
 PORT=8888
 
-server_name="ce-bmk-dsr1-server"
+server_name="ce-bmk-llama4-maverick-server"
 
 set -x
 docker run --rm --ipc=host --shm-size=16g --network=host --name=$server_name \
@@ -18,7 +18,7 @@ docker run --rm --ipc=host --shm-size=16g --network=host --name=$server_name \
 -v $HF_HUB_CACHE_MOUNT:$HF_HUB_CACHE \
 -v ~/mi355_benchmark/team_ce/dsr1:/workspace/ -w /workspace/ -e PORT=$PORT \
 --entrypoint=/bin/bash \
-$IMAGE dsr1_fp8_mi355x_docker.sh
+$IMAGE llama4_maverick_mi355x_docker.sh
 
 if ls gpucore.* 1> /dev/null 2>&1; then
   echo "gpucore files exist. not good"

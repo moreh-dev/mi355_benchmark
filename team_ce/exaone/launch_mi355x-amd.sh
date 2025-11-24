@@ -9,7 +9,7 @@ HF_HUB_CACHE_MOUNT=~/.cache/huggingface
 HF_HUB_CACHE=/root/.cache/huggingface
 PORT=8888
 
-server_name="ce-bmk-dsr1-server"
+server_name="ce-bmk-exaone-server"
 
 set -x
 docker run --rm --ipc=host --shm-size=16g --network=host --name=$server_name \
