@@ -2,7 +2,7 @@
 
 # === Required Env Vars ===
 PORT=8888
-SERVER_LOG=logs/server.log
+SERVER_LOG=./logs/server.log
 
 # reference: https://rocm.docs.amd.com/en/docs-7.0-docker/benchmark-docker/inference-vllm-deepseek-r1-fp8.html
 model=deepseek-ai/DeepSeek-R1-0528
@@ -28,7 +28,7 @@ vllm serve ${MODEL} \
     --max-model-len ${max_model_len} \
     --block-size 1 \
     --gpu-memory-utilization 0.95 \
-    --async-scheduling > $SERVER_LOG 2>&1 &
+    --async-scheduling 2>&1 | tee "logs/${RESULT_FILENAME}.log"
 set +x
 
 # for sglang (optional)
