@@ -2,7 +2,8 @@
 
 # === Required Env Vars ===
 PORT=8888
-MODEL=deepseek-ai/DeepSeek-R1-0528
+# MODEL=deepseek-ai/DeepSeek-R1-0528
+MODEL=/app/deepseek-r1-0528
 
 SERVER_LOG=logs/server.log
 
@@ -11,10 +12,16 @@ model=deepseek-ai/DeepSeek-R1-0528
 max_model_len=16384           # Must be >= the input + the output lengths.
 max_seq_len_to_capture=10240  # Beneficial to set this to max_model_len.
 max_num_seqs=1024
-max_num_batched_tokens=131072 # Smaller values may result in better TTFT but worse TPOT / throughput.
+max_num_batched_tokens=65536 # Smaller values may result in better TTFT but worse TPOT / throughput.
 tensor_parallel_size=8
-VLLM_SERVER_DEV_MODE=1
 
+export VLLM_SERVER_DEV_MODE=1
+export VLLM_ROCM_USE_AITER=1
+export VLLM_USE_AITER_UNIFIED_ATTENTION=1
+export VLLM_ROCM_USE_AITER_MHA=0
+export VLLM_SERVER_DEV_MODE=1
+
+set -x
 vllm serve ${model} \
     --host localhost \
     --port $PORT \
@@ -26,8 +33,8 @@ vllm serve ${model} \
     --max-model-len ${max_model_len} \
     --block-size 1 \
     --gpu-memory-utilization 0.95 \
-    --max-seq-len-to-capture ${max_seq_len_to_capture} \
     --async-scheduling > $SERVER_LOG 2>&1 &
+set +x
 
 # for sglang (optional)
 # python3 -m sglang.launch_server \
