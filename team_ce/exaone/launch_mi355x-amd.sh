@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # === Workflow-defined Env Vars ===
-IMAGE=rocm/vllm:rocm7.0.0_vllm_0.11.1_20251103
+IMAGE=moreh-vllm:gpt_oss_rocm7.0.0_v0.11.1.1124_gfx950 
 # rocm_base: rocm/vllm:rocm7.0.0_vllm_0.11.1_20251103
 # sgl: rocm/sgl-dev:v0.5.5.post3-rocm700-mi35x-20251119
-# moreh: 
+# moreh: moreh-vllm:gpt_oss_rocm7.0.0_v0.11.1.1124
 HF_HUB_CACHE_MOUNT=~/.cache/huggingface
 HF_HUB_CACHE=/root/.cache/huggingface
 PORT=8888

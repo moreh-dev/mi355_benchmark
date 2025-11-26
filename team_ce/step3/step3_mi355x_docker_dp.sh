@@ -2,25 +2,38 @@
 
 # === Required Env Vars ===
 PORT=8888
-SERVER_LOG=./logs/server.log
-mkdir -p logs
+SERVER_LOG=./dp_logs/server.log
+mkdir ./dp_logs
 
-MODEL=LGAI-EXAONE/EXAONE-3.5-32B-Instruct
-TP=1
+# reference: https://rocm.docs.amd.com/en/docs-7.0-docker/benchmark-docker/inference-vllm-deepseek-r1-fp8.html
+MODEL=stepfun-ai/Step3-fp8
+DP=8
 
 set -x
+# moreh
 export VLLM_SERVER_DEV_MODE=1
 export VLLM_ROCM_USE_AITER=1
-export VLLM_ROCM_USE_AITER_MHA=0
-export VLLM_ATTENTION_BACKEND=ROCM_ATTN
+export VLLM_ROCM_USE_AITER_MOE=0
 
-vllm serve $MODEL \
+vllm serve ${MODEL} \
     --host localhost \
     --port $PORT \
-    --tensor-parallel-size $TP \
+    --data-parallel-size ${DP} \
+    --enable-expert-parallel \
     --trust-remote-code \
     --no-enable-prefix-caching > $SERVER_LOG 2>&1 &
 set +x
+
+# set -x
+# export VLLM_SERVER_DEV_MODE=1
+
+# vllm serve ${MODEL} \
+#     --host localhost \
+#     --port $PORT \
+#     --data-parallel-size ${DP} \
+#     --enable-expert-parallel \
+#     --no-enable-prefix-caching > $SERVER_LOG 2>&1 &
+# set +x
 
 # for sglang (optional)
 # python3 -m sglang.launch_server \
@@ -43,8 +56,9 @@ source "benchmark_lib.sh"
 # Wait for server to be ready
 wait_for_server_ready --port "$PORT" --server-log "$SERVER_LOG" --server-pid "$SERVER_PID"
 
-ISL_LIST=("512" "4096" "16384")
+ISL_LIST=("512" "4096" "32768")
 OSL_LIST=("512" "1024" "1024")
+
 
 for idx in "${!ISL_LIST[@]}"; do
   ISL="${ISL_LIST[$idx]}"
@@ -70,7 +84,7 @@ for idx in "${!ISL_LIST[@]}"; do
         echo "Warning: Prefix cache reset failed with status code: $STATUS_CODE."
     fi
 
-    RESULT_FILENAME="exoane_3.5_32B_${ISL}_${OSL}_${CONC}"
+    RESULT_FILENAME="llama4_maverick_${ISL}_${OSL}_${CONC}_dp"
     NUM_PROMPTS=$(( CONC * 3 ))
     run_benchmark_serving \
         --model "$MODEL" \
@@ -81,7 +95,7 @@ for idx in "${!ISL_LIST[@]}"; do
         --num-prompts "$NUM_PROMPTS" \
         --max-concurrency "$CONC" \
         --result-filename "$RESULT_FILENAME" \
-        --result-dir /workspace/logs 2>&1 | tee "logs/${RESULT_FILENAME}.log"
+        --result-dir /workspace/dp_logs 2>&1 | tee "dp_logs/${RESULT_FILENAME}.log"
       
       sleep 20
 

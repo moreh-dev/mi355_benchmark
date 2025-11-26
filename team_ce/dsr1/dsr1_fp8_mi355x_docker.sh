@@ -4,8 +4,10 @@
 PORT=8888
 SERVER_LOG=./logs/server.log
 
+mkdir -p logs
+
 # reference: https://rocm.docs.amd.com/en/docs-7.0-docker/benchmark-docker/inference-vllm-deepseek-r1-fp8.html
-model=deepseek-ai/DeepSeek-R1-0528
+MODEL=deepseek-ai/DeepSeek-R1-0528
 max_model_len=16384           # Must be >= the input + the output lengths.
 max_seq_len_to_capture=10240  # Beneficial to set this to max_model_len.
 max_num_seqs=1024
@@ -13,23 +15,35 @@ max_num_batched_tokens=65536 # Smaller values may result in better TTFT but wors
 tensor_parallel_size=8
 
 set -x
-export VLLM_SERVER_DEV_MODE=1
+# moreh-vllm
 export VLLM_ROCM_USE_AITER=1
-export VLLM_ATTENTION_BACKEND=ROCM_AITER_MLA
+export VLLM_USE_AITER_UNIFIED_ATTENTION=1
+export VLLM_ROCM_USE_AITER_MHA=0
+export VLLM_SERVER_DEV_MODE=1
 
 vllm serve ${MODEL} \
-    --host localhost \
     --port $PORT \
-    --swap-space 64 \
-    --tensor-parallel-size ${tensor_parallel_size} \
-    --max-num-seqs ${max_num_seqs} \
-    --no-enable-prefix-caching \
-    --max-num-batched-tokens ${max_num_batched_tokens} \
-    --max-model-len ${max_model_len} \
-    --block-size 1 \
-    --gpu-memory-utilization 0.95 \
-    --async-scheduling 2>&1 | tee "logs/${RESULT_FILENAME}.log"
+    --config dsr1.yaml > $SERVER_LOG 2>&1 &
 set +x
+
+# set -x
+# export VLLM_SERVER_DEV_MODE=1
+# export VLLM_ROCM_USE_AITER=1
+# export VLLM_ATTENTION_BACKEND=ROCM_AITER_MLA
+
+# vllm serve ${MODEL} \
+#     --host localhost \
+#     --port $PORT \
+#     --swap-space 64 \
+#     --tensor-parallel-size ${tensor_parallel_size} \
+#     --max-num-seqs ${max_num_seqs} \
+#     --no-enable-prefix-caching \
+#     --max-num-batched-tokens ${max_num_batched_tokens} \
+#     --max-model-len ${max_model_len} \
+#     --block-size 1 \
+#     --gpu-memory-utilization 0.95 \
+#     --async-scheduling > $SERVER_LOG 2>&1 &
+# set +x
 
 # for sglang (optional)
 # python3 -m sglang.launch_server \
@@ -63,7 +77,7 @@ for idx in "${!ISL_LIST[@]}"; do
   for CONC in "${CONC_LIST[@]}"; do
 
     # reset prefix cache
-    STATUS_CODE=$(curl -X POST -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/flush_cache -H "Content-Type: application/json")
+    STATUS_CODE=$(curl -X POST -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/reset_prefix_cache -H "Content-Type: application/json")
     if [ "$STATUS_CODE" -eq 200 ]; then
       echo "Prefix cache reset successfully."
     elif [ "$STATUS_CODE" -eq 404 ]; then
@@ -83,7 +97,7 @@ for idx in "${!ISL_LIST[@]}"; do
         --num-prompts "$NUM_PROMPTS" \
         --max-concurrency "$CONC" \
         --result-filename "$RESULT_FILENAME" \
-        --result-dir /workspace/logs > "logs/${RESULT_FILENAME}.log" 2>&1 &
+        --result-dir /workspace/logs 2>&1 | tee "logs/${RESULT_FILENAME}.log"
       
       sleep 20
 

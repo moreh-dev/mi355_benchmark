@@ -2,34 +2,45 @@
 
 # === Required Env Vars ===
 PORT=8888
-SERVER_LOG=logs/server.log
+SERVER_LOG=./dp_logs/server.log
+mkdir ./dp_logs
 
 # reference: https://rocm.docs.amd.com/en/docs-7.0-docker/benchmark-docker/inference-vllm-deepseek-r1-fp8.html
-model=deepseek-ai/DeepSeek-R1-0528
-max_model_len=16384           # Must be >= the input + the output lengths.
-max_seq_len_to_capture=10240  # Beneficial to set this to max_model_len.
-max_num_seqs=1024
-max_num_batched_tokens=65536 # Smaller values may result in better TTFT but worse TPOT / throughput.
-tensor_parallel_size=8
+MODEL=meta-llama/Llama-4-Maverick-17B-128E-Instruct
+DP=8
 
 set -x
+# moreh
 export VLLM_SERVER_DEV_MODE=1
 export VLLM_ROCM_USE_AITER=1
-export VLLM_ATTENTION_BACKEND=ROCM_AITER_MLA
+# export VLLM_ROCM_USE_AITER_RMSNORM=0 
+# export VLLM_ROCM_USE_AITER_MHA=0 
+# export VLLM_V1_USE_PREFILL_DECODE_ATTENTION=1
+# export VLLM_ATTENTION_BACKEND=ROCM_AITER_MLA
 
 vllm serve ${MODEL} \
     --host localhost \
     --port $PORT \
-    --swap-space 64 \
-    --tensor-parallel-size ${tensor_parallel_size} \
-    --max-num-seqs ${max_num_seqs} \
-    --no-enable-prefix-caching \
-    --max-num-batched-tokens ${max_num_batched_tokens} \
-    --max-model-len ${max_model_len} \
-    --block-size 1 \
-    --gpu-memory-utilization 0.95 \
-    --async-scheduling > $SERVER_LOG 2>&1 &
+    --data-parallel-size ${DP} \
+    --enable-expert-parallel \
+    --no-enable-prefix-caching > $SERVER_LOG 2>&1 &
 set +x
+
+# set -x
+# export VLLM_SERVER_DEV_MODE=1
+# export VLLM_ROCM_USE_AITER=1
+# export VLLM_ROCM_USE_AITER_RMSNORM=0 
+# export VLLM_ROCM_USE_AITER_MHA=0 
+# export VLLM_V1_USE_PREFILL_DECODE_ATTENTION=1
+# export VLLM_ATTENTION_BACKEND=ROCM_AITER_MLA
+
+# vllm serve ${MODEL} \
+#     --host localhost \
+#     --port $PORT \
+#     --data-parallel-size ${DP} \
+#     --enable-expert-parallel \
+#     --no-enable-prefix-caching > $SERVER_LOG 2>&1 &
+# set +x
 
 # for sglang (optional)
 # python3 -m sglang.launch_server \
@@ -52,18 +63,26 @@ source "benchmark_lib.sh"
 # Wait for server to be ready
 wait_for_server_ready --port "$PORT" --server-log "$SERVER_LOG" --server-pid "$SERVER_PID"
 
-ISL_LIST=("1024" "8192")
-OSL_LIST=("1024" "1024")
-CONC_LIST=("4" "8" "16" "32")
+ISL_LIST=("512" "4096" "32768")
+OSL_LIST=("512" "1024" "1024")
+
 
 for idx in "${!ISL_LIST[@]}"; do
   ISL="${ISL_LIST[$idx]}"
   OSL="${OSL_LIST[$idx]}"
 
+  if [[ "$ISL" == "512" ]]; then
+    CONC_LIST=("1" "8" "64" "256")
+  elif [[ "$ISL" == "4096" ]]; then
+    CONC_LIST=("1" "8" "64" "256")
+  else
+    CONC_LIST=("1" "8" "32")
+  fi
+
   for CONC in "${CONC_LIST[@]}"; do
 
     # reset prefix cache
-    STATUS_CODE=$(curl -X POST -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/flush_cache -H "Content-Type: application/json")
+    STATUS_CODE=$(curl -X POST -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/reset_prefix_cache -H "Content-Type: application/json")
     if [ "$STATUS_CODE" -eq 200 ]; then
       echo "Prefix cache reset successfully."
     elif [ "$STATUS_CODE" -eq 404 ]; then
@@ -72,8 +91,8 @@ for idx in "${!ISL_LIST[@]}"; do
         echo "Warning: Prefix cache reset failed with status code: $STATUS_CODE."
     fi
 
-    RESULT_FILENAME="dsr1_0528_fp8_${ISL}_${OSL}_${CONC}"
-    NUM_PROMPTS=$(( CONC * 10 ))
+    RESULT_FILENAME="llama4_maverick_${ISL}_${OSL}_${CONC}_dp"
+    NUM_PROMPTS=$(( CONC * 3 ))
     run_benchmark_serving \
         --model "$MODEL" \
         --port "$PORT" \
@@ -83,7 +102,7 @@ for idx in "${!ISL_LIST[@]}"; do
         --num-prompts "$NUM_PROMPTS" \
         --max-concurrency "$CONC" \
         --result-filename "$RESULT_FILENAME" \
-        --result-dir /workspace/logs > "logs/${RESULT_FILENAME}.log" 2>&1 &
+        --result-dir /workspace/dp_logs 2>&1 | tee "dp_logs/${RESULT_FILENAME}.log"
       
       sleep 20
 

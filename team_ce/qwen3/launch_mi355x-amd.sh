@@ -9,17 +9,19 @@ IMAGE=moreh-vllm:gpt_oss_rocm7.0.0_v0.11.1.1124_gfx950
 HF_HUB_CACHE_MOUNT=~/.cache/huggingface
 HF_HUB_CACHE=/root/.cache/huggingface
 PORT=8888
+TYPE=$1
 
-server_name="ce-bmk-dsr1-server"
+server_name="ce-bmk-qwen3-server"
+script_name="qwen3_mi355x_docker_${TYPE}.sh"
 
 set -x
-docker run --rm --ipc=host --shm-size=16g --network=host --name=$server_name \
+docker run --rm --ipc=host --shm-size=64g --network=host --ipc host --group-add video --name=$server_name \
 --privileged --cap-add=CAP_SYS_ADMIN --device=/dev/kfd --device=/dev/dri --device=/dev/mem \
 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
 -v $HF_HUB_CACHE_MOUNT:$HF_HUB_CACHE \
--v ~/mi355_benchmark/team_ce/dsr1:/workspace/ -w /workspace/ -e PORT=$PORT \
+-v ~/mi355_benchmark/team_ce/qwen3:/workspace/ -w /workspace/ -e PORT=$PORT \
 --entrypoint=/bin/bash \
-$IMAGE dsr1_fp8_mi355x_docker.sh
+$IMAGE $script_name
 
 if ls gpucore.* 1> /dev/null 2>&1; then
   echo "gpucore files exist. not good"

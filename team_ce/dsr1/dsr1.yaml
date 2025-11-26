@@ -1,0 +1,13 @@
+trust_remote_code: true
+max_model_len: 163840
+block_size: 1
+tensor_parallel_size: 8
+max_num_batched_tokens: 8192
+max_num_seqs: 1024
+enable_chunked_prefill: true
+reasoning-parser: "deepseek_r1"
+compilation_config: '{
+  "cudagraph_mode": "FULL",
+  "cudagraph_capture_sizes": [1, 2, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248]
+}'
+enable_prefix_caching: true
